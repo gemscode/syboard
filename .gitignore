@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+# Builds of the executables
+build/
+dist/
+*.spec
+# Local settings and secrets never belong in the repository
+.env
+.env.*
+*.pem
+*.key
