@@ -210,6 +210,17 @@ def main():
         check("the token went only in the Authorization header, in no address",
               tok_ok and not any(TOKEN in x["raw"] or WRONG in x["raw"] for x in SEEN), f"{len(tok_ok)} requests with it")
 
+        # 3b. the token goes only to Hetzner's address, or to a stand-in on this machine's loopback
+        n0 = len(SEEN)
+        for label, value in (("an http address of another host", "http://api.example.invalid/v1"),
+                             ("an https address of another host", "https://api.example.invalid/v1"),
+                             ("an empty address", ""), ("an address with no scheme", "api.hetzner.cloud/v1")):
+            os.environ["SYBOARD_CLOUD_API"] = value
+            e = refusal(lambda: cloud.read("test-server", what="server", env_file=OK))
+            check(f"{label} is refused before the token is read or sent", e and "SYBOARD_CLOUD_API must be" in e and len(SEEN) == n0
+                  and TOKEN not in e, e or "-")
+        os.environ["SYBOARD_CLOUD_API"] = api
+
         # 4. the syboard command itself
         env = dict(os.environ, SYBOARD_CLOUD_API=api, PYTHONPATH=SRC)
         env.pop("HETZNER_API_KEY", None)
