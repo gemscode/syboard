@@ -1,0 +1,31 @@
+# Every push to main and every pull request: the leak scan, then the tests on Linux and macOS.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Leak scan
+        run: python scripts/leak_scan.py
+      - name: The node tools on a test machine
+        run: python tests/test_node.py
+      - name: The cloud reads against a stand-in API
+        run: python tests/test_cloud.py
+      - name: The command installs and runs
+        run: |
+          python -m pip install .
+          syboard --version

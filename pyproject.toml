@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "syboard"
+version = "0.1.0"
+description = "Syboard's node tools: assess a machine, install a node's stores, read a node's log, read its cloud server."
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+syboard = "syboard.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

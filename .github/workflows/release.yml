@@ -1,0 +1,50 @@
+# A version tag (v0.1.0 and so on) makes a release and attaches one executable per system and processor, each with its SHA-256.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+  build:
+    needs: create
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: syboard-macos-arm64
+          - os: ubuntu-22.04
+            name: syboard-linux-x86_64
+          - os: ubuntu-22.04-arm
+            name: syboard-linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: |
+          python tests/test_node.py
+          python tests/test_cloud.py
+      - name: Build one executable
+        run: |
+          python -m pip install pyinstaller==6.11.1
+          pyinstaller --onefile --name "${{ matrix.name }}" --paths src src/syboard/__main__.py
+          "./dist/${{ matrix.name }}" --version
+      - name: Attach it to the release
+        run: |
+          cd dist
+          shasum -a 256 "${{ matrix.name }}" > "${{ matrix.name }}.sha256"
+          gh release upload "$GITHUB_REF_NAME" "${{ matrix.name }}" "${{ matrix.name }}.sha256" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
