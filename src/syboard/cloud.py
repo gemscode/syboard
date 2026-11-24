@@ -9,7 +9,8 @@ Only GET requests are sent: the module has no other verb, so a token that also a
 token is read from the environment variable HETZNER_API_KEY, or from a .env file named with --env-file; it goes in the
 Authorization header, never in an address, and it is never printed, logged or returned. A redirect is not followed.
 
-The tests point SYBOARD_CLOUD_API at a local stand-in for the API."""
+The tests point SYBOARD_CLOUD_API at a local stand-in for the API. Any other address is refused: the token goes only to
+https://api.hetzner.cloud/v1, or to a stand-in over http on this machine's loopback; no proxy is used."""
 import datetime as dt
 import json
 import os
@@ -39,11 +40,21 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None                                # not followed: the Authorization header would go with it
 
 
-_OPENER = urllib.request.build_opener(_NoRedirect)
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)     # no proxy, no redirect
+API = "https://api.hetzner.cloud/v1"
+LOOPBACK = ("127.0.0.1", "::1", "localhost")
 
 
 def api():
-    return os.environ.get("SYBOARD_CLOUD_API", "https://api.hetzner.cloud/v1").rstrip("/")
+    """Hetzner's own address, or a stand-in for the tests over http on this machine's loopback. Any other value of
+    SYBOARD_CLOUD_API is refused, so an environment variable can never send the token elsewhere."""
+    a = os.environ.get("SYBOARD_CLOUD_API", API).rstrip("/")
+    if a == API:
+        return a
+    u = urllib.parse.urlparse(a)
+    if u.scheme == "http" and u.hostname in LOOPBACK:
+        return a
+    raise CloudError(f"SYBOARD_CLOUD_API must be {API}, or http on this machine's loopback for the tests: nothing was read")
 
 
 def env_value(path, name):
@@ -86,9 +97,9 @@ class Client:
         if self._tok in url:
             raise CloudError(f"refused: the request for /{path} would carry the token in its address")
         self.log.append("GET /" + path + (f"?{q}" if q else ""))
-        req = urllib.request.Request(url, method="GET", headers={"Authorization": f"Bearer {self._tok}", "Accept": "application/json",
-                                                                 "User-Agent": "syboard"})
         try:
+            req = urllib.request.Request(url, method="GET", headers={"Authorization": f"Bearer {self._tok}",
+                                                                     "Accept": "application/json", "User-Agent": "syboard"})
             with _OPENER.open(req, timeout=self.timeout) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
@@ -97,9 +108,9 @@ class Client:
             except Exception:
                 err = {}
             raise CloudError(self.scrub(f"the provider refused GET /{path}: HTTP {e.code} {err.get('code') or ''} "
-                                        f"{err.get('message') or ''}".strip()))
+                                        f"{err.get('message') or ''}".strip())) from None
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
-            raise CloudError(self.scrub(f"the provider did not answer GET /{path}: {getattr(e, 'reason', None) or e}"))
+            raise CloudError(self.scrub(f"the provider did not answer GET /{path}: {getattr(e, 'reason', None) or e}")) from None
 
 
 def find_server(cl, name, host=None):
@@ -208,8 +219,9 @@ def read(server, what="all", start=None, end=None, step=300, key=KEY, env_file=N
     a = when(start, b - dt.timedelta(hours=1))
     if a >= b:
         raise CloudError("--start must come before --end")
+    base = api()                                    # the address is checked before the token is read
     tok = token(key, env_file)
-    cl = Client(tok)
+    cl = Client(tok, base)
     try:
         s = find_server(cl, server)
         out = {"server_asked": server, "provider": "hetzner", "read_at": now.isoformat(),
@@ -220,7 +232,9 @@ def read(server, what="all", start=None, end=None, step=300, key=KEY, env_file=N
         if what in ("all", "metrics"):
             out["metrics"] = metrics_view(cl, s.get("id"), a, b, step)
     except CloudError as e:
-        raise CloudError(cl.scrub(e))
+        raise CloudError(cl.scrub(e)) from None
+    except Exception as e:                           # a backstop: nothing leaves the module unmasked
+        raise CloudError(cl.scrub(f"{type(e).__name__}: {e}")) from None
     out["requests"] = list(cl.log)                  # every request sent: GET, its path and its query (the token is never in them)
     if tok in json.dumps(out):
         raise CloudError("the answer held the token, so nothing is shown")

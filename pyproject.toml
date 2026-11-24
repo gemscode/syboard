@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "syboard"
-version = "0.1.0"
+version = "0.1.1"
 description = "Syboard's node tools: assess a machine, install a node's stores, read a node's log, read its cloud server."
 readme = "README.md"
 license = {text = "Apache-2.0"}

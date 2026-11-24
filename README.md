@@ -111,6 +111,7 @@ environment, or from a `.env` file given with `--env-file`. A Read token is enou
 
 - No key or token is ever printed, logged or written to disk by `syboard`. Tokens travel only in request headers.
 - `syboard cloud` sends only GET requests and does not follow redirects, so even a token that allows writes changes nothing through it.
+  It sends the token only to `https://api.hetzner.cloud/v1` (a test stand-in only over http on this machine's loopback) and uses no proxy.
 - Every command reaches the machine as a script on the standard input of `bash -s` over one SSH connection; nothing is
   quoted on a command line. Values you pass (times, patterns) are checked before anything runs.
 - The stores listen on `127.0.0.1` only. Elasticsearch runs without its security layer because nothing outside the machine
