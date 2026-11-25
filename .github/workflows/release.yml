@@ -36,6 +36,7 @@ jobs:
         run: |
           python tests/test_node.py
           python tests/test_cloud.py
+          python tests/test_verify.py
       - name: Build one executable
         run: |
           python -m pip install pyinstaller==6.11.1

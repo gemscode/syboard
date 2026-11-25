@@ -1,7 +1,8 @@
 # Copyright 2026 The Syboard Authors
 # SPDX-License-Identifier: Apache-2.0
-"""What a node needs, and the stores' Compose file. Both are embedded here so that each executable is a single file.
-A requirements file given with --requirements replaces REQUIREMENTS."""
+"""What a node needs, the stores' Compose file and the node's checklist. All three are embedded here so that each executable is a
+single file. A requirements file given with --requirements replaces REQUIREMENTS; a checklist file given with --checklist replaces
+CHECKLIST."""
 
 REQUIREMENTS = [
     {"id": "platform", "what": "Linux on the machine", "minimum": "Linux",
@@ -108,3 +109,49 @@ volumes:
   natsdata: {}
   redisdata: {}
 """
+
+# The node's checklist: every module a node installed by `syboard node install` holds, each a schema.org SoftwareApplication with
+# the checks of its three levels (`syboard node verify` names a check by its id; syboard.verify.CHECKS holds them). A module covers
+# the containers it names by Compose project and service, or by container name. A checklist file given with --checklist has the same
+# shape, so a node that runs more can list its own modules.
+CHECKLIST = {
+    "@type": "ItemList",
+    "id": "node",
+    "version": 1,
+    "for": "a node installed by syboard node install",
+    "levels": {
+        "present": "its containers exist and its files are in place",
+        "running": "its containers are up and healthy, unchanged over the settle window and not restarted since the last verify",
+        "working": "a real read that a person's use of the module depends on passes",
+    },
+    "modules": [
+        {"id": "machine", "@type": "SoftwareApplication", "name": "the machine and Docker", "covers": [],
+         "present": ["docker_answers"], "running": ["only_ssh_public", "disk_space"], "working": [],
+         "fix": "syboard node install --apply (steps base, sysctl, docker)"},
+        {"id": "secrets", "@type": "SoftwareApplication", "name": "the node's secrets: names, modes and owner only, no value read",
+         "covers": [], "secrets": ["stores.env"], "present": ["secrets_root_only"], "running": [], "working": [],
+         "fix": "syboard node install --apply (step folders)"},
+        {"id": "store-elasticsearch", "@type": "SoftwareApplication", "name": "Elasticsearch 8.15.0",
+         "covers": [{"project": "syboard-stores", "service": "elasticsearch"}],
+         "present": ["containers_exist"], "running": ["containers_stable", "containers_healthy"], "working": ["es_health"],
+         "fix": "syboard node install --apply (steps stores, init)"},
+        {"id": "store-age", "@type": "SoftwareApplication", "name": "Apache AGE (PostgreSQL 16)",
+         "covers": [{"project": "syboard-stores", "service": "age"}],
+         "present": ["containers_exist"], "running": ["containers_stable", "containers_healthy"], "working": ["age_cypher"],
+         "fix": "syboard node install --apply (steps stores, init)"},
+        {"id": "store-nats", "@type": "SoftwareApplication", "name": "NATS 2.10 with JetStream",
+         "covers": [{"project": "syboard-stores", "service": "nats"}],
+         "present": ["containers_exist"], "running": ["containers_stable", "containers_healthy"], "working": ["nats_jetstream"],
+         "fix": "syboard node install --apply (steps stores, init)"},
+        {"id": "store-redis", "@type": "SoftwareApplication", "name": "Redis",
+         "covers": [{"project": "syboard-stores", "service": "redis"}],
+         "present": ["containers_exist"], "running": ["containers_stable", "containers_healthy"], "working": ["redis_ping"],
+         "fix": "syboard node install --apply (step stores)"},
+    ],
+    "not_checked": [
+        {"what": "a write through each store (an index, a graph vertex, a stream message, a key)",
+         "why": "node verify reads only and writes nothing on the node"},
+        {"what": "the kernel settings, the automatic security updates and the other install steps",
+         "why": "syboard node plan runs each install step's own check"},
+    ],
+}

@@ -8,7 +8,7 @@ import re
 import sys
 import time
 
-from . import __version__, cloud, node
+from . import __version__, cloud, node, verify
 
 NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 MARK = {"pass": "ok  ", "warn": "warn", "fail": "FAIL", "install": "add ", "set": "set "}
@@ -38,10 +38,15 @@ def _print_plan(p):
         print("refused: below the minimum for " + ", ".join(p["refuse"]))
 
 
-def _log_step(host, name, res):
+def _log_file(host):
+    """The records file of a machine: ~/.syboard/deployments/<host>.jsonl, one JSON record per line."""
     folder = os.path.expanduser("~/.syboard/deployments")
     os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, re.sub(r"[^A-Za-z0-9._-]", "_", host) + ".jsonl"), "a", encoding="utf-8") as f:
+    return os.path.join(folder, re.sub(r"[^A-Za-z0-9._-]", "_", host) + ".jsonl")
+
+
+def _log_step(host, name, res):
+    with open(_log_file(host), "a", encoding="utf-8") as f:
         f.write(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "step": name, "result": res.get("result")}) + "\n")
 
 
@@ -70,6 +75,33 @@ def cmd_install(args):
     else:
         print(f"installed: every step done on {args.host} ({len(T.log)} commands over one SSH connection)")
     return 0
+
+
+def cmd_verify(args):
+    name = _name(args)
+    cl = verify.checklist(args.checklist)
+    verify.validate(cl, args.module)
+    T = node.SSH(args.host, _key(args.ssh_key), args.user)
+    log = _log_file(args.host)
+    res = verify.run(T, name, cl, previous=verify.previous(log, name), only=args.module,
+                     at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    if res.get("refused"):
+        raise node.NodeError(f"{res['refused']}; nothing was recorded")
+    # the result is printed before its records are written, so a fault while writing never hides it
+    if args.json:
+        print(json.dumps(res, indent=1), flush=True)
+    elif res["reachable"]:
+        print("\n".join(verify.report(res)), flush=True)
+    else:
+        print(f"syboard: {name}: the machine did not answer over SSH (exit {res.get('rc')}): {res.get('error', '')}", file=sys.stderr)
+    try:
+        with open(log, "a", encoding="utf-8") as f:
+            for rec in verify.records(name, res):
+                f.write(json.dumps(rec) + "\n")
+    except OSError as e:
+        print(f"syboard: the records were not written to {log}: {e}", file=sys.stderr)
+        return 1
+    return 0 if res["reachable"] and res["summary"]["result"] == "pass" else 1
 
 
 def cmd_journal(args):
@@ -112,7 +144,7 @@ def cmd_cloud(args):
 
 def parser():
     ap = argparse.ArgumentParser(prog="syboard", description="Syboard's node tools: assess a machine, install a node's stores, "
-                                 "read a node's log, read its cloud server.")
+                                 "check a node against its checklist, read a node's log, read its cloud server.")
     ap.add_argument("--version", action="version", version=f"syboard {__version__}")
     sub = ap.add_subparsers(dest="what", required=True)
 
@@ -129,6 +161,15 @@ def parser():
         if verb == "install":
             p.add_argument("--apply", action="store_true", help="make the changes (without it, nothing is changed)")
         p.set_defaults(fn=fn)
+    v = nd.add_parser("verify", help="check the node against its checklist: each module present, running and working (read only)")
+    v.add_argument("host", help="the machine's address or host name")
+    v.add_argument("--ssh-key", required=True, help="the private key that signs in to the machine")
+    v.add_argument("--user", default="root", help="the user to sign in as (default root)")
+    v.add_argument("--name", help="the node's name, as given to node install (default syboard-node)")
+    v.add_argument("--module", help="check this module only (the last full run stays the restart baseline)")
+    v.add_argument("--checklist", help="a JSON checklist in place of the built-in one")
+    v.add_argument("--json", action="store_true", help="print JSON")
+    v.set_defaults(fn=cmd_verify)
     j = nd.add_parser("journal", help="the machine's own log over a window (read only)")
     j.add_argument("host")
     j.add_argument("--ssh-key", required=True)
