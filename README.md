@@ -16,8 +16,33 @@ The governance, the node registry, the agents and the views come in later releas
 
 ## Install
 
-Download the executable for your system from the [latest release](https://github.com/gemscode/syboard/releases/latest),
-check it against its `.sha256` file, make it executable and put it on your `PATH`:
+### Download
+
+Click the button for your system. Each one downloads a single executable from the
+[latest release](https://github.com/gemscode/syboard/releases/latest), and its SHA-256 is beside it. Every version is on the
+[releases page](https://github.com/gemscode/syboard/releases).
+
+| System | Download | SHA-256 |
+|---|---|---|
+| macOS on Apple silicon | [![Download for macOS on Apple silicon](https://img.shields.io/badge/Download-macOS%20Apple%20silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/gemscode/syboard/releases/latest/download/syboard-macos-arm64) | [syboard-macos-arm64.sha256](https://github.com/gemscode/syboard/releases/latest/download/syboard-macos-arm64.sha256) |
+| Linux on x86_64 | [![Download for Linux on x86_64](https://img.shields.io/badge/Download-Linux%20x86__64-2ea44f?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/gemscode/syboard/releases/latest/download/syboard-linux-x86_64) | [syboard-linux-x86_64.sha256](https://github.com/gemscode/syboard/releases/latest/download/syboard-linux-x86_64.sha256) |
+| Linux on ARM (aarch64) | [![Download for Linux on ARM (aarch64)](https://img.shields.io/badge/Download-Linux%20ARM64-2ea44f?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/gemscode/syboard/releases/latest/download/syboard-linux-arm64) | [syboard-linux-arm64.sha256](https://github.com/gemscode/syboard/releases/latest/download/syboard-linux-arm64.sha256) |
+
+A downloaded executable needs three things once: the right to run, its place on your `PATH` as `syboard`, and on macOS the
+quarantine mark cleared that the browser puts on a download (the executable is not signed yet). In a terminal, with the file you
+downloaded (skip the first line on Linux):
+
+```bash
+xattr -d com.apple.quarantine ~/Downloads/syboard-macos-arm64
+chmod +x ~/Downloads/syboard-macos-arm64
+sudo mv ~/Downloads/syboard-macos-arm64 /usr/local/bin/syboard
+syboard --version
+```
+
+### From the command line
+
+To install without the browser, for example on a server, download the file for your system (its name is in the table above),
+check it against its SHA-256, make it executable and put it on your `PATH`:
 
 ```bash
 curl -fLO https://github.com/gemscode/syboard/releases/latest/download/syboard-linux-x86_64
@@ -27,14 +52,7 @@ chmod +x syboard-linux-x86_64 && sudo mv syboard-linux-x86_64 /usr/local/bin/syb
 syboard --version
 ```
 
-| System | File |
-|---|---|
-| macOS on Apple silicon | `syboard-macos-arm64` |
-| Linux on x86_64 | `syboard-linux-x86_64` |
-| Linux on ARM (aarch64) | `syboard-linux-arm64` |
-
-The macOS executable is not signed yet. The first time, macOS may refuse to open a file downloaded from the internet; clear
-its quarantine flag once with `xattr -d com.apple.quarantine syboard-macos-arm64`.
+### From source
 
 To install from source instead (Python 3.10 or newer, no other dependency):
 
