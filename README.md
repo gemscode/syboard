@@ -1,12 +1,14 @@
 # Syboard
 
-Syboard is a governed agent harness that runs on NATS and Elasticsearch. Version 0.1 ships its **node tools**: one
-command, `syboard`, that prepares a Linux machine to be a Syboard node and lets you look at it when something goes wrong.
+Syboard is a governed agent harness that runs on NATS and Elasticsearch. Version 0.2 ships its **node tools**: one
+command, `syboard`, that prepares a Linux machine to be a Syboard node, checks the node against its checklist and lets you
+look at it when something goes wrong.
 
 | Command | What it does | Changes the machine |
 |---|---|---|
 | `syboard node plan` | Assesses a machine over SSH against the node requirements and lists the install steps still to do | No |
 | `syboard node install --apply` | Installs Docker and the node's stores (Elasticsearch, Apache AGE, NATS with JetStream, Redis) | Yes |
+| `syboard node verify` | Checks the node against its checklist: each module present, running and working | No |
 | `syboard node journal` | Reads the machine's own log over a time window | No |
 | `syboard cloud` | Reads a Hetzner Cloud server's status, firewalls, actions and graphs | No |
 
@@ -52,7 +54,10 @@ syboard node plan 203.0.113.10 --ssh-key ~/.ssh/my-node
 syboard node install 203.0.113.10 --ssh-key ~/.ssh/my-node --name node-1
 syboard node install 203.0.113.10 --ssh-key ~/.ssh/my-node --name node-1 --apply
 
-# 3. If the machine stops answering, read what it logged around that time...
+# 3. Check every module of the node: present, running and working. Still nothing is changed.
+syboard node verify 203.0.113.10 --ssh-key ~/.ssh/my-node --name node-1
+
+# 4. If the machine stops answering, read what it logged around that time...
 syboard node journal 203.0.113.10 --ssh-key ~/.ssh/my-node --since "2026-01-31 08:50:00" --until "2026-01-31 09:10:00"
 
 # ...or, on Hetzner Cloud, ask the provider how the server looks.
@@ -94,6 +99,46 @@ step whose check does not pass yet:
 A second run finds every step done and changes nothing; a run stopped in a step resumes at that step. Each step's result is
 appended to `~/.syboard/deployments/HOST.jsonl` on the machine you run `syboard` from.
 
+### `syboard node verify HOST --ssh-key FILE`
+
+Checks the node against its checklist and changes nothing on it. The checklist ships with `syboard` (`CHECKLIST` in
+`src/syboard/resources.py`) and lists every module that `syboard node install` sets up: the machine with Docker, the node's
+secrets, Elasticsearch, Apache AGE, NATS and Redis. Each module is checked at three levels:
+
+- **present**: its containers exist and its files are in place. The secrets folder and its files must be root's alone; only
+  their names, modes and owner are read, never a value.
+- **running**: its containers are up and healthy, unchanged over a settle window of 8 seconds (`SYBOARD_SETTLE`, 0 to 60) and
+  not restarted since the last verify; nothing but SSH listens on a public address; less than 90% of the disk is used.
+- **working**: a real read passes: Elasticsearch answers a search, AGE a Cypher query on the node's graph, NATS reports
+  JetStream on and Redis answers `PING`.
+
+One more row, `unlisted`, checks that every container on the machine belongs to a module of the checklist.
+
+```text
+node-1: 6 of 7 rows pass; checklist node version 1 (sha256 c3d12c23ed8b); nothing was written on the node
+  ok    machine              -                       (present ok, running ok, working -)
+  ok    secrets              -                       (present ok, running -, working -)
+  ok    store-elasticsearch  elasticsearch:8.15.0    (present ok, running ok, working ok)
+  ok    store-age            age:release_PG16_1.5.0  (present ok, running ok, working ok)
+  FAIL  store-nats           nats:2.10-alpine        (present ok, running ok, working FAIL)
+        working nats_jetstream: JetStream is not reported on
+        fix: syboard node install --apply (steps stores, init)
+  ok    store-redis          redis:alpine            (present ok, running ok, working ok)
+  ok    unlisted             -                       (present ok, running -, working -)
+```
+
+A row reads `ok` when all its checks pass, `FAIL` with each failed check's evidence and the install steps that fix it, and `?`
+when a fact could not be read. The node is read by one script over SSH (`docker ps` and `docker inspect`, read-only queries inside
+the stores, `stat`, `df` and `ss`). A machine whose `/opt/syboard/stores/node.env` names another node is refused before any check,
+so a wrong address or `--name` is caught. Each run appends one record per module and a summary to
+`~/.syboard/deployments/HOST.jsonl`, and the next run reads the containers' restart counts there.
+
+Options: `--user` (default `root`), `--name` (the name given to `node install`, default `syboard-node`), `--module ID` (one module
+only; the last full run stays the baseline), `--checklist FILE` (a JSON checklist of the same shape in place of the built-in one,
+for example with a module for each of your own containers, covered by Compose project and service or by name and checked with
+`containers_exist`, `containers_stable` and `containers_healthy`). It exits with 0 when every row passes, and with 1 when a row
+fails or could not be checked, or when the machine does not answer or is not the node.
+
 ### `syboard node journal HOST --ssh-key FILE --since UTC --until UTC`
 
 The machine's boot time, its last boots and its journal between the two times (UTC), the newest `--lines` of them
@@ -114,6 +159,8 @@ environment, or from a `.env` file given with `--env-file`. A Read token is enou
   It sends the token only to `https://api.hetzner.cloud/v1` (a test stand-in only over http on this machine's loopback) and uses no proxy.
 - Every command reaches the machine as a script on the standard input of `bash -s` over one SSH connection; nothing is
   quoted on a command line. Values you pass (times, patterns) are checked before anything runs.
+- `syboard node verify` runs no command that changes the machine, and it reads the names, modes and owner of the node's
+  secrets, never their values.
 - The stores listen on `127.0.0.1` only. Elasticsearch runs without its security layer because nothing outside the machine
   reaches it; keep port 22 the only one open to the internet (`syboard node plan` checks it).
 - To report a vulnerability, see [SECURITY.md](SECURITY.md).
@@ -124,6 +171,7 @@ environment, or from a `.env` file given with `--env-file`. A Read token is enou
 git clone https://github.com/gemscode/syboard && cd syboard
 python tests/test_node.py      # the node tools against a test machine made of stub programs
 python tests/test_cloud.py     # the cloud reads against a local stand-in for the Hetzner API
+python tests/test_verify.py    # node verify on the test machine, and on survey outputs with one fault each
 python scripts/leak_scan.py    # no keys, tokens or private key blocks in the repository
 python -m syboard --help       # run from the source tree (with PYTHONPATH=src)
 ```

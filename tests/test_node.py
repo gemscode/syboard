@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """The node tools on a test machine: the steps run through node.Local against a scratch folder laid out like Debian 13, with one
 stub program standing in for apt-get, dpkg, systemctl, sysctl, docker, curl, ss, ip, nproc, uname, df, timedatectl, swapon,
-timeout and journalctl. The stub keeps the machine's state in a file and logs every call; it never touches the network or the
-Docker of the machine running the test. Usage: python tests/test_node.py (exit 0 when every check passes)."""
+timeout, stat and journalctl. The stub keeps the machine's state in a file and logs every call; it never touches the network or
+the Docker of the machine running the test. tests/test_verify.py runs node verify on the same test machine.
+Usage: python tests/test_node.py (exit 0 when every check passes)."""
 import calendar
 import json
 import os
@@ -59,13 +60,26 @@ if prog == "uname":
 if prog == "nproc":
     out(os.environ.get("FAKE_CPUS", "8"))
 if prog == "df":
+    if "-P" in args:
+        use = os.environ.get("FAKE_DISK_USE", "41")
+        out("Filesystem 1024-blocks Used Available Capacity Mounted on\n"
+            + "\n".join(f"/dev/test 100000000 41000000 59000000 {use}% /" for a in args if not a.startswith("-")))
     out("Avail\n 287G")
 if prog == "timedatectl":
     out("yes")
 if prog == "swapon":
     out()
 if prog == "timeout":
-    out(code=0 if any("/dev/tcp/" in a for a in args) else 1)
+    if any("/dev/tcp/" in a for a in args):
+        out()
+    if len(args) > 1:
+        os.execvp(args[1], args[1:])          # the command it limits, from the test machine's PATH
+    out(code=1)
+if prog == "stat":
+    # GNU stat -c '%n %a %U': the mode of the scratch file itself, the owner root unless the test names another
+    for p in [a for a in args if not a.startswith("-") and "%" not in a]:
+        print(p, format(os.stat(p).st_mode & 0o7777, "o"), os.environ.get("FAKE_OWNER", "root"))
+    out()
 if prog == "ip":
     if "-6" in args:
         out()
@@ -110,6 +124,8 @@ if prog == "curl":
         out()
     if url.startswith("https://"):
         out("200")
+    if "127.0.0.1:9302" in url and "-w" in args:
+        out("200" if st.get("up") else "000", code=0 if st.get("up") else 7)
     if "127.0.0.1:9302" in url:
         out('{"status":"yellow"}' if st.get("up") else "", code=0 if st.get("up") else 7)
     if "127.0.0.1:8222/jsz" in url:
@@ -157,9 +173,19 @@ if prog == "docker":
         if "images" in args:
             out("img-" + args[-1])
         out()
+    if args[:1] == ["inspect"]:
+        # docker inspect -f <the survey's format> <names>: name|image|image id|state|started|restarts|health|project|service
+        names = args[args.index("-f") + 2:] if "-f" in args else args[1:]
+        for n in names:
+            svc = n.replace("syboard-stores-", "").rsplit("-", 1)[0]
+            print(f"/{n}|example/{svc}:test|sha256:{hashlib.sha256(n.encode()).hexdigest()}|running|2026-01-31T05:00:00.000000000Z|"
+                  f"{st.get('restarts', {}).get(n, 0)}|healthy|syboard-stores|{svc}")
+        out()
     if args[:2] == ["image", "inspect"]:
         out("example/" + args[2] + "@sha256:" + hashlib.sha256(args[2].encode()).hexdigest())
     if args[:1] == ["exec"]:
+        if "redis-cli" in args:
+            out("PONG" if st.get("up") else "", code=0 if st.get("up") else 1)
         q = sys.stdin.read() if "-i" in args else args[-1]
         if "cypher(" in q:
             ok_ = st.get("graph") and fail != "nocypher"
@@ -176,7 +202,7 @@ out()
 '''
 
 PROGS = ("uname", "nproc", "df", "timedatectl", "swapon", "timeout", "ip", "ss", "sysctl", "systemctl", "dpkg", "apt-get",
-         "curl", "docker", "journalctl")
+         "curl", "docker", "journalctl", "stat")
 MUTATING = re.compile(r"^(apt-get (update|install|-y)|systemctl enable|sysctl --system|docker compose .*\b(up|pull)\b|docker exec\b.*(create_graph|CREATE EXTENSION))")
 
 
