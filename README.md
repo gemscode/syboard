@@ -54,7 +54,7 @@ syboard node plan 203.0.113.10 --ssh-key ~/.ssh/my-node
 syboard node install 203.0.113.10 --ssh-key ~/.ssh/my-node --name node-1
 syboard node install 203.0.113.10 --ssh-key ~/.ssh/my-node --name node-1 --apply
 
-# 3. Check every module of the node: present, running and working. Still nothing is changed.
+# 3. Check every module of the node: present, running and working. Nothing is changed.
 syboard node verify 203.0.113.10 --ssh-key ~/.ssh/my-node --name node-1
 
 # 4. If the machine stops answering, read what it logged around that time...
@@ -105,8 +105,8 @@ Checks the node against its checklist and changes nothing on it. The checklist s
 `src/syboard/resources.py`) and lists every module that `syboard node install` sets up: the machine with Docker, the node's
 secrets, Elasticsearch, Apache AGE, NATS and Redis. Each module is checked at three levels:
 
-- **present**: its containers exist and its files are in place. The secrets folder and its files must be root's alone; only
-  their names, modes and owner are read, never a value.
+- **present**: Docker answers, the module's containers exist and its files are in place. The secrets folder and its files must
+  be root's alone; only their names, modes and owner are read, never a value.
 - **running**: its containers are up and healthy, unchanged over a settle window of 8 seconds (`SYBOARD_SETTLE`, 0 to 60) and
   not restarted since the last verify; nothing but SSH listens on a public address; less than 90% of the disk is used.
 - **working**: a real read passes: Elasticsearch answers a search, AGE a Cypher query on the node's graph, NATS reports
@@ -128,7 +128,7 @@ node-1: 6 of 7 rows pass; checklist node version 1 (sha256 c3d12c23ed8b); nothin
 ```
 
 A row reads `ok` when all its checks pass, `FAIL` with each failed check's evidence and the install steps that fix it, and `?`
-when a fact could not be read. The node is read by one script over SSH (`docker ps` and `docker inspect`, read-only queries inside
+when a fact could not be read; a level with no check shows `-`. The node is read by one script over SSH (`docker ps` and `docker inspect`, read-only queries inside
 the stores, `stat`, `df` and `ss`). A machine whose `/opt/syboard/stores/node.env` names another node is refused before any check,
 so a wrong address or `--name` is caught. Each run appends one record per module and a summary to
 `~/.syboard/deployments/HOST.jsonl`, and the next run reads the containers' restart counts there.
