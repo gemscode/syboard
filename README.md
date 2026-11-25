@@ -16,6 +16,8 @@ The governance, the node registry, the agents and the views come in later releas
 
 ## Install
 
+### Download
+
 Click the button for your system. Each one downloads a single executable from the
 [latest release](https://github.com/gemscode/syboard/releases/latest), and its SHA-256 is beside it. Every version is on the
 [releases page](https://github.com/gemscode/syboard/releases).
@@ -37,8 +39,10 @@ sudo mv ~/Downloads/syboard-macos-arm64 /usr/local/bin/syboard
 syboard --version
 ```
 
-<details>
-<summary>Download from a terminal instead, for example on a server</summary>
+### From the command line
+
+To install without the browser, for example on a server, download the file for your system (its name is in the table above),
+check it against its SHA-256, make it executable and put it on your `PATH`:
 
 ```bash
 curl -fLO https://github.com/gemscode/syboard/releases/latest/download/syboard-linux-x86_64
@@ -48,7 +52,7 @@ chmod +x syboard-linux-x86_64 && sudo mv syboard-linux-x86_64 /usr/local/bin/syb
 syboard --version
 ```
 
-</details>
+### From source
 
 To install from source instead (Python 3.10 or newer, no other dependency):
 
