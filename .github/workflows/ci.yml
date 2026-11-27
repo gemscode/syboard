@@ -21,6 +21,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Leak scan
         run: python scripts/leak_scan.py
+      - name: The documentation's generated pages match the code
+        run: python scripts/gen_docs_reference.py --check
       - name: The node tools on a test machine
         run: python tests/test_node.py
       - name: The cloud reads against a stand-in API

@@ -1,0 +1,46 @@
+site_name: Syboard documentation
+site_description: Syboard's node tools - assess a machine, install a node's stores, check a node against its checklist, read its log.
+repo_url: https://github.com/gemscode/syboard
+repo_name: gemscode/syboard
+edit_uri: edit/main/docs/
+copyright: Copyright 2026 The Syboard Authors. Apache License 2.0.
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.footer
+    - content.code.copy
+    - search.highlight
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Quickstart: get-started/quickstart.md
+      - Installation: get-started/installation.md
+  - Use Syboard:
+      - Install a node: guides/install-a-node.md
+      - Verify a node: guides/verify-a-node.md
+      - Read a machine's log and its cloud server: guides/read-logs-and-cloud.md
+  - Reference:
+      - CLI reference: reference/cli.md
+      - Node requirements and checklist: reference/requirements.md
+  - Resources:
+      - Troubleshooting: resources/troubleshooting.md
+      - Release notes: release-notes.md
