@@ -3,7 +3,17 @@
 The changes in each version of Syboard's node tools, newest first. Each version is tagged `vX.Y.Z`, and the release of that tag
 carries the executables with their SHA-256.
 
-## 0.2.0 (not released yet)
+## Unreleased
+
+### Added
+
+- The documentation in `docs/`: an overview, a quickstart, the installation, guides to install, verify and read a node, the CLI
+  reference, the node's requirements and checklist, troubleshooting and these release notes, with `mkdocs.yml` to build it as a
+  site. `scripts/gen_docs_reference.py` writes the reference pages and the release notes from the code; with `--check` it fails when
+  they are out of date.
+- `syboard --help` ends with where the documentation is, and `syboard node journal` and `syboard cloud` give every option a help line.
+
+## 0.2.0 (2026-11-25)
 
 ### Added
 

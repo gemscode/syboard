@@ -144,7 +144,9 @@ def cmd_cloud(args):
 
 def parser():
     ap = argparse.ArgumentParser(prog="syboard", description="Syboard's node tools: assess a machine, install a node's stores, "
-                                 "check a node against its checklist, read a node's log, read its cloud server.")
+                                 "check a node against its checklist, read a node's log, read its cloud server.",
+                                 epilog="Documentation: https://github.com/gemscode/syboard/tree/main/docs. "
+                                        "Ask the documentation chat: https://sideborg.app/documentation/chat.")
     ap.add_argument("--version", action="version", version=f"syboard {__version__}")
     sub = ap.add_subparsers(dest="what", required=True)
 
@@ -171,24 +173,24 @@ def parser():
     v.add_argument("--json", action="store_true", help="print JSON")
     v.set_defaults(fn=cmd_verify)
     j = nd.add_parser("journal", help="the machine's own log over a window (read only)")
-    j.add_argument("host")
-    j.add_argument("--ssh-key", required=True)
-    j.add_argument("--user", default="root")
+    j.add_argument("host", help="the machine's address or host name")
+    j.add_argument("--ssh-key", required=True, help="the private key that signs in to the machine")
+    j.add_argument("--user", default="root", help="the user to sign in as (default root)")
     j.add_argument("--since", required=True, help="UTC, such as 2026-01-31 08:30:00")
     j.add_argument("--until", required=True, help="UTC, such as 2026-01-31 09:00:00")
     j.add_argument("--grep", help="only the lines whose message matches this pattern")
     j.add_argument("--lines", default=200, type=int, help="the newest lines to show (1 to 2000, default 200)")
-    j.add_argument("--json", action="store_true")
+    j.add_argument("--json", action="store_true", help="print JSON")
     j.set_defaults(fn=cmd_journal)
 
     c = sub.add_parser("cloud", help="a Hetzner Cloud server's status, firewalls, actions and graphs (read only)")
     c.add_argument("server", help="the server's name, or its public IPv4 address")
-    c.add_argument("--what", default="all", choices=cloud.VIEWS)
+    c.add_argument("--what", default="all", choices=cloud.VIEWS, help="what to read (default all)")
     c.add_argument("--start", help="the graphs' start, UTC (default: an hour before --end)")
     c.add_argument("--end", help="the graphs' end, UTC (default: now)")
     c.add_argument("--step", default=300, type=int, help="seconds between graph points (default 300)")
     c.add_argument("--env-file", help="a .env file that holds HETZNER_API_KEY (default: the environment variable)")
-    c.add_argument("--json", action="store_true")
+    c.add_argument("--json", action="store_true", help="print JSON")
     c.set_defaults(fn=cmd_cloud)
     return ap
 
